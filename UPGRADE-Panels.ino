@@ -19,8 +19,12 @@
 #define PIN_2 7
 #define TOTAL_PIX_2 111
 
+#define PIN_3 5
+#define TOTAL_PIX_3 40
+
 Adafruit_NeoPixel strip1 = Adafruit_NeoPixel(TOTAL_PIX_1, PIN_1, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip2 = Adafruit_NeoPixel(TOTAL_PIX_2, PIN_2, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip3 = Adafruit_NeoPixel(TOTAL_PIX_3, PIN_3, NEO_GRB + NEO_KHZ800);
 
 uint8_t ledShift = 0;
 uint8_t wait = 90;
@@ -47,9 +51,17 @@ uint32_t colorList[6] = {
 uint8_t waitChanceWave = 50; // out of 100, varied timing.
 
 // Series groups.
-uint8_t  changeChanceSeries = 30, // out of 100, blinkiness.
-         changeSeriesChange = 35; // out of 100, varied speed.
+uint8_t changeChanceSeries = 30, // out of 100, blinkiness.
+        changeSeriesChange = 35; // out of 100, varied speed.
 
+uint8_t blipLoop = 20, // Animation length.
+        heartbeatPosition = 0,
+        triggerFrame = 15, // Length of chart strip.
+        circuitPixels = 13, // Earlier in full strip.
+        chartPixels = 15, // Later in full strip.
+        heartChance = 33, // out of 100, light up chance.
+        colorStep = 20, // out of 255, fade speed from red to blue.
+        heartPixels[28];
 
 void setup() {
 //  // This is for Trinket 5V 16MHz, you can remove these three lines if you are not using a Trinket
@@ -59,10 +71,14 @@ void setup() {
 //  // End of trinket special code
   
   randomSeed(analogRead(0));
+
   strip1.begin();
   strip2.begin();
+  strip3.begin();
+
   strip1.show();
   strip2.show();
+  strip3.show();
 }
 
 /**
@@ -83,10 +99,11 @@ void loop() {
   waveLine(54, strip2); // Assumed end gap of 3.
 
   // Panel #3.
-  //heartBeat(strip3);
+  heartBeat(strip3);
 
   strip1.show();
   strip2.show();
+  strip3.show();
   delay(wait);
 }
 
@@ -130,12 +147,44 @@ void waveLine(uint8_t screenSize, Adafruit_NeoPixel &strip) {
     for (uint16_t i=0; i<screenSize; i++) {
       // Determine pixel characteristics.      
       pixelStrength = random(0, 255),
-      color = (pixelStrength < 170) ? colorWheel(pixelStrength) : 0;
+      color = (pixelStrength > 90) ? strip1.Color(0, 0, pixelStrength) : 0;
       // Set screen pixel.
       strip.setPixelColor(i, color);
       strip.setPixelColor(((screenSize * 2) + 2) - i, color);
     }
   }
+}
+
+/**
+ * Manage animation of blip chart and blood cell circuit pixels.
+ */
+void heartBeat(Adafruit_NeoPixel &strip) {
+  // Loop through the animation.
+  heartbeatPosition = (heartbeatPosition > blipLoop) ? 0 : heartbeatPosition + 1;
+
+  // Fade out any lit pixels.
+  for (uint8_t i=0; i<circuitPixels + chartPixels; i++) {
+    if (heartPixels[i] != 0) {
+       // Shift red to blue.
+       heartPixels[i] = heartPixels[i] - colorStep;
+       strip.setPixelColor(i, strip.Color(heartPixels[i], 0, 255 - heartPixels[i]));
+    }
+  }
+
+  // Heart beat trigger zone.
+  if (heartbeatPosition >= triggerFrame) {
+    // Randomly light up circuit pixels.
+    for (uint8_t i=0; i<circuitPixels; i++) {
+      if ((heartPixels[i] == 0) && (random(1, 100) > heartChance)) {
+        // Make red.
+        heartPixels[i] = 255;
+        strip.setPixelColor(i, strip.Color(heartPixels[i], 0, 0));
+      }
+    }
+  }
+
+  // Move chart along setting pixel.
+  strip.setPixelColor((circuitPixels + chartPixels) - heartbeatPosition, strip.Color(0, 0, 255));
 }
 
 /**
